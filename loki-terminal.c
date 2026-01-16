@@ -43,13 +43,25 @@ static void setup_terminal_colors(VteTerminal *terminal) {
     vte_terminal_set_colors(terminal, &fg, &bg, palette, 16);
 }
 
+typedef struct {
+    GtkWindow *window;
+    gchar **argv;
+    gchar **envp;
+} SpawnData;
+
 static void spawn_callback(VteTerminal *terminal, GPid pid, GError *error, gpointer user_data) {
+    SpawnData *data = (SpawnData *)user_data;
+
     if (error) {
         fprintf(stderr, "Failed to spawn shell: %s\n", error->message);
         // Note: Do not call g_error_free(error) here - VTE owns this GError
-        GtkWindow *window = GTK_WINDOW(user_data);
-        gtk_window_close(window);
+        gtk_window_close(data->window);
     }
+
+    // Free the spawn data now that the async operation is complete
+    g_strfreev(data->argv);
+    g_strfreev(data->envp);
+    g_free(data);
 }
 
 static void spawn_shell(VteTerminal *terminal, GtkWindow *window) {
@@ -57,19 +69,20 @@ static void spawn_shell(VteTerminal *terminal, GtkWindow *window) {
     if (!shell) {
         shell = "/bin/bash";
     }
-    
-    gchar **argv = g_malloc0(sizeof(gchar*) * 2);
-    argv[0] = g_strdup(shell);
-    argv[1] = NULL;
-    
-    gchar **envp = g_get_environ();
-    
+
+    SpawnData *data = g_new0(SpawnData, 1);
+    data->window = window;
+    data->argv = g_malloc0(sizeof(gchar*) * 2);
+    data->argv[0] = g_strdup(shell);
+    data->argv[1] = NULL;
+    data->envp = g_get_environ();
+
     vte_terminal_spawn_async(
         terminal,
         VTE_PTY_DEFAULT,
         g_get_home_dir(),
-        argv,
-        envp,
+        data->argv,
+        data->envp,
         G_SPAWN_SEARCH_PATH,
         NULL,
         NULL,
@@ -77,13 +90,8 @@ static void spawn_shell(VteTerminal *terminal, GtkWindow *window) {
         -1,
         NULL,
         spawn_callback,
-        (gpointer)window
+        data
     );
-
-    // Note: argv and envp are intentionally not freed here.
-    // vte_terminal_spawn_async() is asynchronous, so freeing them
-    // immediately could cause use-after-free. For a terminal app
-    // that spawns once per window, this minor leak is acceptable.
 }
 
 static void activate(GtkApplication *app, gpointer user_data) {
