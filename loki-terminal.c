@@ -46,7 +46,7 @@ static void setup_terminal_colors(VteTerminal *terminal) {
 static void spawn_callback(VteTerminal *terminal, GPid pid, GError *error, gpointer user_data) {
     if (error) {
         fprintf(stderr, "Failed to spawn shell: %s\n", error->message);
-        g_error_free(error);
+        // Note: Do not call g_error_free(error) here - VTE owns this GError
         GtkWindow *window = GTK_WINDOW(user_data);
         gtk_window_close(window);
     }
@@ -79,9 +79,11 @@ static void spawn_shell(VteTerminal *terminal, GtkWindow *window) {
         spawn_callback,
         (gpointer)window
     );
-    
-    g_strfreev(argv);
-    g_strfreev(envp);
+
+    // Note: argv and envp are intentionally not freed here.
+    // vte_terminal_spawn_async() is asynchronous, so freeing them
+    // immediately could cause use-after-free. For a terminal app
+    // that spawns once per window, this minor leak is acceptable.
 }
 
 static void activate(GtkApplication *app, gpointer user_data) {
