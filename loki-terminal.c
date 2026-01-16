@@ -46,7 +46,7 @@ static void setup_terminal_colors(VteTerminal *terminal) {
 static void spawn_callback(VteTerminal *terminal, GPid pid, GError *error, gpointer user_data) {
     if (error) {
         fprintf(stderr, "Failed to spawn shell: %s\n", error->message);
-        g_error_free(error);
+        // Note: Do not call g_error_free(error) here - VTE owns this GError
         GtkWindow *window = GTK_WINDOW(user_data);
         gtk_window_close(window);
     }
