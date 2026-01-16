@@ -79,9 +79,11 @@ static void spawn_shell(VteTerminal *terminal, GtkWindow *window) {
         spawn_callback,
         (gpointer)window
     );
-    
-    g_strfreev(argv);
-    g_strfreev(envp);
+
+    // Note: argv and envp are intentionally not freed here.
+    // vte_terminal_spawn_async() is asynchronous, so freeing them
+    // immediately could cause use-after-free. For a terminal app
+    // that spawns once per window, this minor leak is acceptable.
 }
 
 static void activate(GtkApplication *app, gpointer user_data) {
